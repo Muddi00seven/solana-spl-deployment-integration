@@ -1,9 +1,15 @@
-# SPL Token Studio — Create · Deploy · Integrate
+# SPL Token Studio — Deploy (script) · Integrate (web app)
 
-A single-page **Next.js 14** dapp that takes you through the *entire* lifecycle of a
-Solana **SPL token** — creating (deploying) it on-chain, then calling every core
-token function from the browser using the **Solana Wallet Adapter** (Phantom /
-Solflare), with **no `ethers`, no Reown, no EVM**.
+A **Next.js 14** dapp that **integrates with one already-deployed Solana SPL token**.
+The token is created and its supply minted **once** by a command-line deploy script
+(`npm run deploy`); the web app then lets a connected wallet **check balance, transfer,
+and burn** that same token from the browser using the **Solana Wallet Adapter**
+(Phantom / Solflare) — with **no `ethers`, no Reown, no EVM**.
+
+> **The frontend does NOT create or mint tokens.** It binds to the token recorded in
+> `deployment.json`. Deploying and minting are one-time authority actions performed by
+> the deploy script — the mint authority is the **deployer keypair**, not a connected
+> browser wallet, so the browser can't mint new supply anyway.
 
 Everything runs on **Solana devnet**, so it's free and safe to experiment with.
 
@@ -15,7 +21,7 @@ Everything runs on **Solana devnet**, so it's free and safe to experiment with.
 2. [Key concepts you must know](#2-key-concepts-you-must-know)
 3. [What this app does](#3-what-this-app-does)
 4. [Project file map](#4-project-file-map)
-5. [The full flow: create → deploy → integrate](#5-the-full-flow-create--deploy--integrate)
+5. [The full flow: deploy (once) → integrate (web app)](#5-the-full-flow-deploy-once--integrate-web-app)
 6. [Run it locally (step by step)](#6-run-it-locally-step-by-step)
 7. [How each SPL function works](#7-how-each-spl-function-works)
 8. [Wallet connection flow](#8-wallet-connection-flow)
@@ -48,7 +54,7 @@ Program is one.
 |--------|----------------|
 | **Mint account** | *This is your token.* It stores the token's `decimals`, total supply, and mint authority. Creating a token = creating + initializing a mint. |
 | **Associated Token Account (ATA)** | A wallet does **not** hold tokens directly. For each token a wallet owns, a small separate account (the ATA) holds *that wallet's balance of that token*. Its address is derived deterministically from `(wallet, mint)`. |
-| **Mint authority** | The wallet allowed to create (mint) new supply. This app sets it to *you*. |
+| **Mint authority** | The wallet allowed to create (mint) new supply. The deploy script sets it to the **deployer keypair** — so minting is a deploy-time action, not a browser one. |
 | **Freeze authority** | The wallet allowed to freeze token accounts. Also set to you (can be disabled). |
 | **Decimals** | Divisibility. With 9 decimals, `1` whole token = `1,000,000,000` base units. On-chain amounts are always in base units; the UI converts for you. |
 | **Rent-exempt deposit** | To keep an account alive on Solana you deposit a little SOL up front (~0.0015 SOL for a mint). |
@@ -58,20 +64,23 @@ Program is one.
 
 ## 3. What this app does
 
-One page, seven steps, each button calls exactly one function in `lib/spl.ts`:
+The token itself is deployed **once** by the CLI script (see §6.1). The web app then
+**integrates** with that deployed token. It shows the token's details (name, mint
+address, decimals, cluster) read from `deployment.json`, and each action button calls
+exactly one function in `lib/spl.ts`:
 
 1. **Connect wallet** — Phantom / Solflare, on devnet.
 2. **Airdrop devnet SOL** — free gas so you can pay fees. *(devnet only)*
-3. **Create & deploy token** — initialize a new mint; you become the authority.
-4. **Mint tokens** — print supply into any wallet (creates its ATA if needed).
-5. **Check balance** — read-only, free, no wallet popup.
-6. **Transfer tokens** — send to another wallet (creates their ATA if needed).
-7. **Burn tokens** — permanently destroy supply.
+3. **Check balance** — your balance of the deployed token; read-only, free, no popup.
+4. **Transfer tokens** — send the deployed token to another wallet (creates their ATA if needed).
+5. **Burn tokens** — permanently destroy your own supply of the deployed token.
 
-> **Note on the airdrop step:** you originally asked for the *core* set (create, mint,
-> transfer, balance, burn). A devnet **SOL airdrop** button was added on top, because
-> without a small amount of SOL for fees none of the other actions can run. It's clearly
-> labeled and devnet-only — remove it before going to mainnet.
+There are deliberately **no "Create token" or "Mint tokens" buttons** — those are
+one-time deploy-script actions (§6.1), not browser actions.
+
+> **Note on the airdrop step:** a devnet **SOL airdrop** button is included because
+> without a small amount of SOL for fees the transfer/burn actions can't run. It's
+> clearly labeled and devnet-only — remove it before going to mainnet.
 
 ---
 
@@ -87,15 +96,18 @@ app/
 components/
   Providers.tsx     → ConnectionProvider + WalletProvider + WalletModalProvider.
                       This is what makes "Connect Wallet" work everywhere.
-  SplTokenApp.tsx   → THE single page. Connect button, balance, and one panel per
-                      SPL function. Each button calls a function from lib/spl.ts.
+  SplTokenApp.tsx   → THE single page. Shows the deployed-token info, connect button,
+                      and one panel per integration action (balance/transfer/burn).
+                      The mint address + decimals are fixed from deployment.json.
 
 lib/
   solana.ts         → Network config: the devnet Connection + Explorer link helpers.
                       Switch to mainnet here in one line.
-  spl.ts            → EVERY on-chain SPL action, heavily commented:
-                      createToken, mintTokens, transferTokens, burnTokens,
-                      getTokenBalance (+ base-unit helper).
+  token.ts          → Reads deployment.json and exports DEPLOYED_TOKEN (mint address,
+                      decimals, name, cluster). This is the single token the app binds to.
+  spl.ts            → The on-chain SPL actions the web app uses, heavily commented:
+                      transferTokens, burnTokens, getTokenBalance (+ base-unit helper).
+                      No createToken/mintTokens — deploy + mint happen in the script.
 
 scripts/
   deploy-token.mjs  → Standalone CLI deployment: generates/loads a keypair,
@@ -103,34 +115,36 @@ scripts/
                       revokes authority, saves deployment.json. Run: npm run deploy
                       Full guide: DEPLOYMENT.md
 
+deployment.json     → The deployed token's record (written by the deploy script).
+                      The web app reads its mint address + decimals from here.
 next.config.mjs     → Webpack fallbacks so crypto libs build in the browser.
 .env.local.example  → Optional custom RPC URL.
 ```
 
 ---
 
-## 5. The full flow: create → deploy → integrate
+## 5. The full flow: deploy (once) → integrate (web app)
 
-> Two ways to deploy: **in the browser** (the "Create token" button, below) or
-> **from the command line** (`npm run deploy`). The scripted CLI flow and the
-> Solana `spl-token` CLI method are documented step-by-step in
-> **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+> **Deploy is a one-time command-line step** (`npm run deploy`). The scripted CLI flow
+> and the Solana `spl-token` CLI method are documented step-by-step in
+> **[DEPLOYMENT.md](./DEPLOYMENT.md)**. After it runs, `deployment.json` holds the
+> token's mint address — the web app reads it automatically.
 
-**Create + Deploy** happen in one transaction (`createToken` in `lib/spl.ts`):
-
-```
-Generate a fresh keypair for the mint account
-   → SystemProgram.createAccount  (allocate the account, pay rent-exempt SOL)
-      → createInitializeMint2Instruction  (set decimals + mint/freeze authority)
-         → wallet signs + mint keypair co-signs
-            → transaction confirmed  ➜  your token now exists on devnet
-```
-
-**Integrate** = the app's other buttons calling the token:
+**Deploy + mint initial supply** happen in the script (`scripts/deploy-token.mjs`):
 
 ```
-Mint     → (create recipient ATA if missing) → MintTo         → you sign as authority
-Balance  → derive ATA → getAccount            → read amount    → free, no popup
+Load/generate the deployer keypair (pays fees, becomes mint authority)
+   → createMint                     (allocate + initialize the mint on-chain)
+      → getOrCreateAssociatedTokenAccount  (deployer's ATA)
+         → mintTo                   (mint the initial supply into that ATA)
+            → (optional) revoke mint authority  → supply fixed forever
+               → write deployment.json  ➜  the token now exists on devnet
+```
+
+**Integrate** = the web app's buttons acting on that already-deployed token:
+
+```
+Balance  → derive your ATA → getAccount     → read amount    → free, no popup
 Transfer → (create recipient ATA if missing) → Transfer       → you sign as owner
 Burn     → derive your ATA → Burn             → supply drops   → you sign as owner
 ```
@@ -201,9 +215,11 @@ node scripts/deploy-token.mjs --revoke                           # lock supply f
 
 ---
 
-### 6.2 — Run the web app (mint / transfer / burn in the browser)
+### 6.2 — Run the web app (integrate: balance / transfer / burn)
 
-This path additionally needs a **browser wallet** (Phantom or Solflare).
+> **Deploy first.** The web app binds to the token in `deployment.json`, so you must
+> have run `npm run deploy` (§6.1) at least once. This path additionally needs a
+> **browser wallet** (Phantom or Solflare).
 
 ```bash
 # 1. install dependencies (skip if already done above)
@@ -216,40 +232,45 @@ cp .env.local.example .env.local   # then fill NEXT_PUBLIC_RPC_URL if you have o
 npm run dev
 ```
 
-Open **http://localhost:3000**, then:
+Open **http://localhost:3000**. The **Deployed token** panel shows the token's name,
+mint address, decimals, and cluster (from `deployment.json`). Then:
 
 1. In your **Phantom** extension → Settings → **Developer Settings** → set network to
    **Devnet**. *(This is essential — a mainnet wallet won't see your devnet token.)*
 2. Click **Select Wallet** → connect.
 3. Click **Airdrop 1 SOL** (if the built-in faucet is busy, use
    <https://faucet.solana.com> and paste your address).
-4. Click **Create token** → approve in Phantom. The mint address auto-fills. *(Or
-   paste the mint address you got from `npm run deploy` in 6.1.)*
-5. **Mint** some tokens to yourself → **Check balance** → **Transfer** to another
-   address → **Burn** a few. Each success shows an Explorer link.
+4. **Check balance** → **Transfer** the token to another address → **Burn** a few.
+   Each success shows an Explorer link.
+
+> **How do I get some of the token to test with?** The deploy script minted the initial
+> supply to the **deployer's** wallet, not your browser wallet. To try transfer/burn from
+> a balance, transfer some of the token from the deployer to your connected wallet (e.g.
+> via the deployer keypair), or point the app at a token you deployed to your own wallet.
 
 ---
 
 ## 7. How each SPL function works
 
-All live in `lib/spl.ts`. They receive the `connection`, your wallet `publicKey`, and
-the adapter's `sendTransaction` (which pops up Phantom to sign).
+The web-app actions live in `lib/spl.ts`. They receive the `connection`, your wallet
+`publicKey`, and the adapter's `sendTransaction` (which pops up Phantom to sign). The
+`mintAddress` they operate on is fixed — it comes from `deployment.json` via
+`lib/token.ts` (`DEPLOYED_TOKEN`).
 
-- **`createToken(...)`** — generates a mint keypair, allocates the account, and
-  initializes it with your chosen decimals and you as authority. Returns the mint
-  address + signature.
-- **`mintTokens(...)`** — derives the recipient's ATA, creates it if missing, then
-  `MintTo`. Only the mint authority (you) can do this.
 - **`transferTokens(...)`** — derives both ATAs, creates the recipient's if missing,
   then `Transfer` from your account. You sign as the owner.
 - **`burnTokens(...)`** — `Burn` from your ATA. Reduces total supply permanently.
 - **`getTokenBalance(...)`** — read-only. Derives your ATA and reads `.amount`. If the
   account doesn't exist yet, returns `0` (no error).
 
+> **Where are create + mint?** In the deploy script (`scripts/deploy-token.mjs`), which
+> runs once from the CLI. They are intentionally **not** in the web app: the mint
+> authority is the deployer keypair, so a browser wallet can't mint, and the app's job
+> is to integrate with the token that already exists.
+
 **Read vs Write:**
 *Read* (balance) touches no wallet, costs nothing, no popup.
-*Write* (create / mint / transfer / burn) needs your signature + a tiny SOL fee, so
-Phantom pops up each time.
+*Write* (transfer / burn) needs your signature + a tiny SOL fee, so Phantom pops up each time.
 
 ---
 
@@ -272,13 +293,17 @@ browser-only APIs (`window`, `localStorage`) that crash during server rendering.
 
 ## 9. Going to mainnet
 
-1. In `lib/solana.ts`, change `CLUSTER` from `'devnet'` to `'mainnet-beta'`.
-2. Set a real paid RPC in `.env.local` (`NEXT_PUBLIC_RPC_URL`) — the public endpoint
+1. Deploy the token to mainnet with the script:
+   `node scripts/deploy-token.mjs --cluster mainnet-beta --keypair <your-funded-keypair>`
+   This rewrites `deployment.json`, so the web app automatically binds to the new token.
+2. In `lib/solana.ts`, change `CLUSTER` from `'devnet'` to `'mainnet-beta'` so the
+   Explorer links and RPC point at mainnet.
+3. Set a real paid RPC in `.env.local` (`NEXT_PUBLIC_RPC_URL`) — the public endpoint
    is heavily rate-limited.
-3. **Remove the Airdrop panel** in `SplTokenApp.tsx` — there is no airdrop on mainnet;
+4. **Remove the Airdrop panel** in `SplTokenApp.tsx` — there is no airdrop on mainnet;
    you must fund the wallet with real SOL.
-4. Switch your Phantom wallet back to **Mainnet**.
-5. Every action now costs **real SOL**. Test thoroughly on devnet first.
+5. Switch your Phantom wallet back to **Mainnet**.
+6. Every action now costs **real SOL**. Test thoroughly on devnet first.
 
 ---
 
@@ -288,7 +313,8 @@ browser-only APIs (`window`, `localStorage`) that crash during server rendering.
 |--------|------|
 | **Airdrop fails / "429"** | The devnet faucet is rate-limited. Use <https://faucet.solana.com>. |
 | **"Attempt to debit an account but found no record of a prior credit"** | Your wallet has 0 SOL. Airdrop first. |
-| **Token/actions do nothing after create** | Make sure Phantom is on **Devnet**, and that the mint address field is filled. |
+| **Balance shows 0 / transfer says insufficient** | The initial supply was minted to the **deployer**, not your browser wallet. Transfer some of the token to your connected wallet first. |
+| **Token panel is empty / wrong token** | The app reads `deployment.json`. Run `npm run deploy` first (or re-run it) so that file exists and points at your token. |
 | **`window is not defined` / build crash** | Providers must be imported with `dynamic(..., { ssr:false })` (already done in `layout.tsx`). |
 | **`Module not found` during build** | Add the missing module to `resolve.fallback` in `next.config.mjs` as `false`. |
 | **Recipient can't see received tokens** | They may need to add the mint address as a custom token in their wallet; the ATA still holds the balance on-chain. |

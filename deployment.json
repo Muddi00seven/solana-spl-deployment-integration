@@ -1,0 +1,17 @@
+{
+  "cluster": "devnet",
+  "name": "My SPL Token",
+  "mintAddress": "BGTZSdEqy1YmEb2eqEanPxujtpjkQtP5gBZ2C5EMT3RA",
+  "decimals": 9,
+  "initialSupply": 1000000,
+  "totalSupplyBaseUnits": "1000000000000000",
+  "mintAuthority": "2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3",
+  "freezeAuthority": "2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3",
+  "deployer": "2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3",
+  "ata": "5BGCaPVLKcrurHoNMgakN4Y2D5wEJN9ywHGyTofg7eTs",
+  "deployedAt": "2026-07-02T20:09:09.673Z",
+  "explorer": {
+    "mint": "https://explorer.solana.com/address/BGTZSdEqy1YmEb2eqEanPxujtpjkQtP5gBZ2C5EMT3RA?cluster=devnet",
+    "deployer": "https://explorer.solana.com/address/2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3?cluster=devnet"
+  }
+}

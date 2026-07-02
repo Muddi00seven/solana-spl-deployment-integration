@@ -7,8 +7,10 @@ independent ways to do it — pick either:
   extension needed; deploys + mints supply in one command.
 - **Method B — Solana CLI**: the official `solana` + `spl-token` command-line tools.
 
-Both produce the exact same thing: a **mint account** on Solana. After deploying,
-paste the mint address into the web app (`npm run dev`) to mint / transfer / burn.
+Both produce the exact same thing: a **mint account** on Solana. Method A writes the
+token's record to `deployment.json`, which the web app (`npm run dev`) reads
+automatically to integrate with it — check balance / transfer / burn. (The web app
+does not create or mint; that's done here, once.)
 
 > On Solana you don't deploy your own contract. "Deploying a token" = asking the
 > shared **SPL Token Program** to create and initialize a new **mint** account.
@@ -85,10 +87,11 @@ creates the mint and mints the supply. You'll see output ending with:
   "initialSupply": 1000000,
   ...
 }
-👉 Paste this mint address into the web app …
+👉 Saved to deployment.json — the web app reads it automatically …
 ```
 
-It also writes the full record to **`deployment.json`** in the project root.
+It writes the full record to **`deployment.json`** in the project root; the web app
+reads its mint address + decimals from there, so there's nothing to copy-paste.
 
 ### Step 3 — Options
 
@@ -116,10 +119,11 @@ node --env-file=.env.local scripts/deploy-token.mjs
 
 Open the Explorer link the script prints (e.g.
 `https://explorer.solana.com/address/<MINT>?cluster=devnet`) and confirm decimals,
-supply, and authorities. Then run the web app and paste the mint address:
+supply, and authorities. Then run the web app — it binds to the token in
+`deployment.json` automatically (no pasting):
 
 ```bash
-npm run dev   # → http://localhost:3000, paste the mint into "Mint address"
+npm run dev   # → http://localhost:3000, shows the deployed token; integrate with it
 ```
 
 ---
@@ -221,6 +225,6 @@ scope for the core flow here but is the standard next step for a public token.
 | `airdrop failed` / rate-limited | Use <https://faucet.solana.com>, then re-run. |
 | `Not enough SOL … airdrop only works on devnet` | You're on mainnet — fund the deployer address manually. |
 | `Cannot find module '@solana/spl-token'` | Run `npm install` first. |
-| Web app can't see the token | Make sure the app and the deploy used the **same cluster** (devnet), and paste the exact mint address. |
+| Web app can't see the token | Make sure the app and the deploy used the **same cluster** (devnet), and that `deployment.json` exists (run `npm run deploy` first). The app reads the mint from that file. |
 | Want more supply later but revoked authority | Not possible — revoking is permanent. Deploy a new token. |
 | `ERR_REQUIRE_ESM … rpc-websockets … require() of ES Module … uuid` | A bad transitive `uuid` version got pulled in. This project pins it via `overrides` in `package.json`. Apply it with a clean reinstall: `rm -rf node_modules package-lock.json && npm install`, then `npm run deploy`. |

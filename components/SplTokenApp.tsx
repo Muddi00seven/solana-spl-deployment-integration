@@ -1,16 +1,21 @@
 'use client'
 
 // ─── The single-page SPL Token app ──────────────────────────────────────────
-// One screen that walks a user through the FULL lifecycle of an SPL token:
+// This screen INTEGRATES with ONE already-deployed SPL token — the one recorded
+// in deployment.json (deployed + minted once by `npm run deploy`). It does NOT
+// create a token and does NOT mint new supply from the browser:
+//   • The token already exists on-chain.
+//   • Its mint authority is the DEPLOYER keypair, not the connected wallet, so a
+//     browser wallet cannot mint more supply anyway.
+//
+// What a connected wallet CAN do here, against the deployed token:
 //   1. Connect a wallet          (Phantom / Solflare on devnet)
 //   2. Airdrop devnet SOL        (so you have gas to pay fees)
-//   3. Create + deploy the token (initialize a new mint)
-//   4. Mint new tokens           (print supply into a wallet)
-//   5. Check balance             (read-only, free)
-//   6. Transfer tokens           (send to another wallet)
-//   7. Burn tokens               (destroy supply)
+//   3. Check balance             (read-only, free)
+//   4. Transfer tokens           (send to another wallet)
+//   5. Burn tokens               (destroy your own supply)
 //
-// Every button below calls exactly one function from `lib/spl.ts`.
+// Every action button calls exactly one function from `lib/spl.ts`.
 
 import { useCallback, useEffect, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
@@ -18,9 +23,8 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 
 import { explorerAddress, explorerTx } from '@/lib/solana'
+import { DEPLOYED_TOKEN } from '@/lib/token'
 import {
-  createToken,
-  mintTokens,
   transferTokens,
   burnTokens,
   getTokenBalance,
@@ -31,26 +35,21 @@ import {
 type Status = { kind: 'idle' | 'busy' | 'ok' | 'err'; text: string; sig?: string }
 const idle: Status = { kind: 'idle', text: '' }
 
+// The token this app is bound to. Fixed at deploy time — not editable in the UI.
+const MINT_ADDRESS = DEPLOYED_TOKEN.mintAddress
+const DECIMALS = DEPLOYED_TOKEN.decimals
+
 export function SplTokenApp() {
   // `connection` = devnet RPC. `publicKey` = connected wallet. `sendTransaction`
   // signs + sends (the Phantom popup). `connected` = is a wallet linked?
   const { connection } = useConnection()
   const { publicKey, sendTransaction, connected } = useWallet()
 
-  // Shared state for the token we're working with.
-  const [decimals, setDecimals] = useState(9)
-  const [mintAddress, setMintAddress] = useState('')
-
   // SOL balance shown at the top (you need SOL to pay fees).
   const [solBalance, setSolBalance] = useState<number | null>(null)
 
   // Per-panel input + status.
   const [airStatus, setAirStatus] = useState<Status>(idle)
-  const [createStatus, setCreateStatus] = useState<Status>(idle)
-
-  const [mintAmount, setMintAmount] = useState('100')
-  const [mintTo, setMintTo] = useState('')
-  const [mintStatus, setMintStatus] = useState<Status>(idle)
 
   const [tokenBalance, setTokenBalance] = useState<number | null>(null)
   const [balStatus, setBalStatus] = useState<Status>(idle)
@@ -75,8 +74,6 @@ export function SplTokenApp() {
   useEffect(() => {
     if (connected && publicKey) {
       refreshSol()
-      // Pre-fill "mint to" and "transfer from" with your own address for convenience.
-      setMintTo(publicKey.toBase58())
     } else {
       setSolBalance(null)
     }
@@ -99,50 +96,12 @@ export function SplTokenApp() {
     }
   }
 
-  // Create + deploy the token (initialize a new mint).
-  async function handleCreate() {
-    if (!publicKey) return
-    setCreateStatus({ kind: 'busy', text: 'Creating mint — approve in wallet…' })
-    try {
-      const { mintAddress: newMint, signature } = await createToken(
-        connection,
-        publicKey,
-        sendTx,
-        decimals,
-      )
-      setMintAddress(newMint)
-      setCreateStatus({ kind: 'ok', text: `Token created: ${newMint}`, sig: signature })
-    } catch (e) {
-      setCreateStatus({ kind: 'err', text: errMsg(e) })
-    }
-  }
-
-  // Mint new tokens to a wallet.
-  async function handleMint() {
-    if (!publicKey || !requireMint(setMintStatus)) return
-    setMintStatus({ kind: 'busy', text: 'Minting — approve in wallet…' })
-    try {
-      const sig = await mintTokens(
-        connection,
-        publicKey,
-        sendTx,
-        mintAddress,
-        mintTo || publicKey.toBase58(),
-        Number(mintAmount),
-        decimals,
-      )
-      setMintStatus({ kind: 'ok', text: `Minted ${mintAmount} tokens`, sig })
-    } catch (e) {
-      setMintStatus({ kind: 'err', text: errMsg(e) })
-    }
-  }
-
-  // Read the connected wallet's balance of this token (free, no popup).
+  // Read the connected wallet's balance of the deployed token (free, no popup).
   async function handleCheckBalance() {
-    if (!publicKey || !requireMint(setBalStatus)) return
+    if (!publicKey) return
     setBalStatus({ kind: 'busy', text: 'Reading balance…' })
     try {
-      const bal = await getTokenBalance(connection, publicKey, mintAddress, decimals)
+      const bal = await getTokenBalance(connection, publicKey, MINT_ADDRESS, DECIMALS)
       setTokenBalance(bal)
       setBalStatus({ kind: 'ok', text: 'Balance updated' })
     } catch (e) {
@@ -150,19 +109,19 @@ export function SplTokenApp() {
     }
   }
 
-  // Transfer tokens to another wallet.
+  // Transfer the deployed token to another wallet.
   async function handleTransfer() {
-    if (!publicKey || !requireMint(setXferStatus)) return
+    if (!publicKey) return
     setXferStatus({ kind: 'busy', text: 'Transferring — approve in wallet…' })
     try {
       const sig = await transferTokens(
         connection,
         publicKey,
         sendTx,
-        mintAddress,
+        MINT_ADDRESS,
         xferTo,
         Number(xferAmount),
-        decimals,
+        DECIMALS,
       )
       setXferStatus({ kind: 'ok', text: `Sent ${xferAmount} tokens`, sig })
     } catch (e) {
@@ -170,32 +129,23 @@ export function SplTokenApp() {
     }
   }
 
-  // Burn tokens from your own balance.
+  // Burn the deployed token from your own balance.
   async function handleBurn() {
-    if (!publicKey || !requireMint(setBurnStatus)) return
+    if (!publicKey) return
     setBurnStatus({ kind: 'busy', text: 'Burning — approve in wallet…' })
     try {
       const sig = await burnTokens(
         connection,
         publicKey,
         sendTx,
-        mintAddress,
+        MINT_ADDRESS,
         Number(burnAmount),
-        decimals,
+        DECIMALS,
       )
       setBurnStatus({ kind: 'ok', text: `Burned ${burnAmount} tokens`, sig })
     } catch (e) {
       setBurnStatus({ kind: 'err', text: errMsg(e) })
     }
-  }
-
-  // Guard: most actions need a mint address first.
-  function requireMint(setter: (s: Status) => void): boolean {
-    if (!mintAddress) {
-      setter({ kind: 'err', text: 'Create a token first, or paste a mint address above.' })
-      return false
-    }
-    return true
   }
 
   // ── UI ────────────────────────────────────────────────────────────────────
@@ -206,7 +156,7 @@ export function SplTokenApp() {
           SPL Token Studio
         </h1>
         <p className="mt-1 text-sm text-white/60">
-          Create · Deploy · Integrate — live on Solana <b>devnet</b>
+          Integrate with the deployed token — live on Solana <b>{DEPLOYED_TOKEN.cluster}</b>
         </p>
       </header>
 
@@ -220,47 +170,37 @@ export function SplTokenApp() {
         )}
       </div>
 
+      {/* Deployed token info — always visible, read-only */}
+      <Panel title="Deployed token">
+        <div className="grid gap-2 text-sm text-white/80">
+          <Row label="Name" value={DEPLOYED_TOKEN.name} />
+          <Row label="Mint address" value={MINT_ADDRESS} mono />
+          <Row label="Decimals" value={String(DECIMALS)} />
+          <Row label="Cluster" value={DEPLOYED_TOKEN.cluster} />
+        </div>
+        <a
+          href={explorerAddress(MINT_ADDRESS)}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block text-xs text-solgreen underline"
+        >
+          View mint on Solana Explorer ↗
+        </a>
+        <p className="mt-3 text-xs text-white/40">
+          This app integrates with the token deployed by <code>npm run deploy</code>.
+          Creating and minting are done once by the deploy script (the mint
+          authority is the deployer, not your wallet), so there are no
+          create/mint buttons here.
+        </p>
+      </Panel>
+
       {!connected ? (
-        <p className="rounded-xl border border-white/10 bg-white/5 p-6 text-white/70">
+        <p className="mt-5 rounded-xl border border-white/10 bg-white/5 p-6 text-white/70">
           Connect a Phantom or Solflare wallet (set it to <b>Devnet</b> in wallet
           settings) to begin.
         </p>
       ) : (
-        <div className="space-y-5">
-          {/* Shared token settings */}
-          <Panel title="Token settings">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Decimals (set before creating)">
-                <input
-                  type="number"
-                  min={0}
-                  max={9}
-                  value={decimals}
-                  onChange={(e) => setDecimals(Number(e.target.value))}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Mint address (auto-filled after create; or paste one)">
-                <input
-                  value={mintAddress}
-                  onChange={(e) => setMintAddress(e.target.value.trim())}
-                  placeholder="Create a token below…"
-                  className={inputCls}
-                />
-              </Field>
-            </div>
-            {mintAddress && (
-              <a
-                href={explorerAddress(mintAddress)}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-block text-xs text-solgreen underline"
-              >
-                View mint on Solana Explorer ↗
-              </a>
-            )}
-          </Panel>
-
+        <div className="mt-5 space-y-5">
           {/* 1. Airdrop */}
           <Panel title="1 · Get devnet SOL (gas)">
             <p className="mb-3 text-sm text-white/60">
@@ -273,35 +213,8 @@ export function SplTokenApp() {
             <StatusLine status={airStatus} />
           </Panel>
 
-          {/* 2. Create */}
-          <Panel title="2 · Create & deploy token">
-            <p className="mb-3 text-sm text-white/60">
-              Initializes a new mint. You become the mint + freeze authority.
-            </p>
-            <Button onClick={handleCreate} busy={createStatus.kind === 'busy'}>
-              Create token
-            </Button>
-            <StatusLine status={createStatus} />
-          </Panel>
-
-          {/* 3. Mint */}
-          <Panel title="3 · Mint tokens">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Amount (whole tokens)">
-                <input value={mintAmount} onChange={(e) => setMintAmount(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Recipient wallet">
-                <input value={mintTo} onChange={(e) => setMintTo(e.target.value.trim())} className={inputCls} />
-              </Field>
-            </div>
-            <Button onClick={handleMint} busy={mintStatus.kind === 'busy'}>
-              Mint
-            </Button>
-            <StatusLine status={mintStatus} />
-          </Panel>
-
-          {/* 4. Balance */}
-          <Panel title="4 · Check your balance">
+          {/* 2. Balance */}
+          <Panel title="2 · Check your balance">
             <Button onClick={handleCheckBalance} busy={balStatus.kind === 'busy'}>
               Check balance
             </Button>
@@ -313,8 +226,8 @@ export function SplTokenApp() {
             <StatusLine status={balStatus} />
           </Panel>
 
-          {/* 5. Transfer */}
-          <Panel title="5 · Transfer tokens">
+          {/* 3. Transfer */}
+          <Panel title="3 · Transfer tokens">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Amount (whole tokens)">
                 <input value={xferAmount} onChange={(e) => setXferAmount(e.target.value)} className={inputCls} />
@@ -329,8 +242,8 @@ export function SplTokenApp() {
             <StatusLine status={xferStatus} />
           </Panel>
 
-          {/* 6. Burn */}
-          <Panel title="6 · Burn tokens">
+          {/* 4. Burn */}
+          <Panel title="4 · Burn tokens">
             <Field label="Amount to burn (whole tokens)">
               <input value={burnAmount} onChange={(e) => setBurnAmount(e.target.value)} className={inputCls} />
             </Field>
@@ -360,6 +273,15 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
       </h2>
       {children}
     </section>
+  )
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <span className="text-xs uppercase tracking-wide text-white/40">{label}</span>
+      <span className={`break-all text-right ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
+    </div>
   )
 }
 

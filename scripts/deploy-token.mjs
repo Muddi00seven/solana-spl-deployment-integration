@@ -3,8 +3,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // This script creates ("deploys") a brand-new SPL token on Solana devnet from
-// the command line — no browser, no wallet extension. It is the scripted twin
-// of the "Create token" button in the web app.
+// the command line — no browser, no wallet extension. This is the ONLY place the
+// token is created and its supply minted; the web app only integrates with the
+// token recorded in deployment.json (check balance / transfer / burn).
 //
 // What it does, in order:
 //   1. Load (or generate) a deployer keypair that pays the fees + owns the token
@@ -299,7 +300,8 @@ async function main() {
   console.log(`\n📝 Saved to ${outPath}`)
   console.log(`🔗 Explorer: ${result.explorer.mint}`)
   console.log(
-    `\n👉 Paste this mint address into the web app to mint/transfer/burn:\n   ${result.mintAddress}`,
+    `\n👉 Saved to deployment.json — the web app auto-reads it. Run \`npm run dev\`\n` +
+      `   to integrate with this token (check balance / transfer / burn):\n   ${result.mintAddress}`,
   )
 }
 
