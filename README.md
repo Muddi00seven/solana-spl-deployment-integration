@@ -97,6 +97,12 @@ lib/
                       createToken, mintTokens, transferTokens, burnTokens,
                       getTokenBalance (+ base-unit helper).
 
+scripts/
+  deploy-token.mjs  → Standalone CLI deployment: generates/loads a keypair,
+                      funds it, creates the mint, mints initial supply, optionally
+                      revokes authority, saves deployment.json. Run: npm run deploy
+                      Full guide: DEPLOYMENT.md
+
 next.config.mjs     → Webpack fallbacks so crypto libs build in the browser.
 .env.local.example  → Optional custom RPC URL.
 ```
@@ -104,6 +110,11 @@ next.config.mjs     → Webpack fallbacks so crypto libs build in the browser.
 ---
 
 ## 5. The full flow: create → deploy → integrate
+
+> Two ways to deploy: **in the browser** (the "Create token" button, below) or
+> **from the command line** (`npm run deploy`). The scripted CLI flow and the
+> Solana `spl-token` CLI method are documented step-by-step in
+> **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 
 **Create + Deploy** happen in one transaction (`createToken` in `lib/spl.ts`):
 
@@ -128,11 +139,74 @@ Burn     → derive your ATA → Burn             → supply drops   → you sig
 
 ## 6. Run it locally (step by step)
 
-**Prerequisites:** Node.js 18+ and a browser with the **Phantom** (or Solflare)
-extension installed.
+### 6.0 — What do I need to install?
+
+**If you ONLY have Node.js installed, that's almost everything.** Here's exactly
+what each path needs:
+
+| You want to… | What you must install |
+|--------------|-----------------------|
+| **Deploy a token via the script** (`npm run deploy`) | **Nothing extra.** Just Node.js 18+ (20+ recommended) and this project's `npm install`. No wallet, no Solana CLI, no Rust, no pre-existing address. |
+| **Use the web app** (`npm run dev`) | Node.js + a **browser wallet extension**: [Phantom](https://phantom.app) or [Solflare](https://solflare.com). Free, 1-click install. |
+| **Deploy via the official Solana CLI** (optional, Method B in [DEPLOYMENT.md](./DEPLOYMENT.md)) | The Solana CLI + `spl-token` CLI (and Rust). **Not needed** if you use the script. |
+
+Check your Node version:
 
 ```bash
-# 1. install dependencies
+node -v      # should print v18.x or higher (v20+ preferred)
+```
+
+If Node is missing or old, install the LTS from <https://nodejs.org>.
+
+> **You do NOT need to create a wallet or address first.** The deploy script
+> generates its own keypair and claims its own devnet SOL — see 6.1.
+
+---
+
+### 6.1 — Quick deploy: no address, no wallet needed
+
+This path needs **only Node.js**. The script auto-generates a keypair, auto-claims
+free devnet SOL, then deploys the token and mints supply — all by itself.
+
+```bash
+# 1. install project dependencies (one time)
+npm install
+
+# 2. deploy — this does EVERYTHING automatically:
+npm run deploy
+```
+
+What `npm run deploy` does, in order, with **zero setup from you**:
+
+1. **Generates a keypair** (a new address + secret key) and saves it to
+   `scripts/deployer-keypair.json` (git-ignored — never committed).
+2. **Airdrops 1 devnet SOL** to that new address to pay the tiny fees.
+3. **Creates the mint** (deploys the token) with your chosen decimals + you as authority.
+4. **Creates an ATA** and **mints the initial supply** into it.
+5. **Prints the mint address** and saves a full record to `deployment.json`.
+
+You'll end up with output like `👉 mint address: <ADDRESS>`. Copy that address.
+
+> **If the airdrop fails** (the free devnet faucet is sometimes busy/rate-limited):
+> the script prints your generated address and stops. Just (a) copy that address,
+> (b) claim SOL at <https://faucet.solana.com>, then (c) run `npm run deploy` again —
+> now that it has SOL, it deploys straight through.
+
+Options (all optional):
+
+```bash
+node scripts/deploy-token.mjs --decimals 6 --supply 1000000000   # custom
+node scripts/deploy-token.mjs --revoke                           # lock supply forever
+```
+
+---
+
+### 6.2 — Run the web app (mint / transfer / burn in the browser)
+
+This path additionally needs a **browser wallet** (Phantom or Solflare).
+
+```bash
+# 1. install dependencies (skip if already done above)
 npm install
 
 # 2. (optional) custom RPC — the app works without this on public devnet
@@ -149,7 +223,8 @@ Open **http://localhost:3000**, then:
 2. Click **Select Wallet** → connect.
 3. Click **Airdrop 1 SOL** (if the built-in faucet is busy, use
    <https://faucet.solana.com> and paste your address).
-4. Click **Create token** → approve in Phantom. The mint address auto-fills.
+4. Click **Create token** → approve in Phantom. The mint address auto-fills. *(Or
+   paste the mint address you got from `npm run deploy` in 6.1.)*
 5. **Mint** some tokens to yourself → **Check balance** → **Transfer** to another
    address → **Burn** a few. Each success shows an Explorer link.
 
