@@ -33,6 +33,9 @@
 //   CLUSTER, RPC_URL, DECIMALS, INITIAL_SUPPLY, TOKEN_NAME
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Load .env into process.env first (works on any Node version, no flag needed).
+import './load-env.mjs'
+
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -52,6 +55,8 @@ import {
   getMint,
 } from '@solana/spl-token'
 import bs58 from 'bs58'
+
+import { attachTokenMetadata, validateMetadata } from './metadata.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -77,6 +82,8 @@ function readArgs() {
     '--decimals',
     '--supply',
     '--name',
+    '--symbol',
+    '--uri',
   ])
   let positionalKey
   for (let i = 0; i < args.length; i++) {
@@ -100,6 +107,8 @@ function readArgs() {
     decimals: Number(get('--decimals') ?? process.env.DECIMALS ?? 9),
     supply: Number(get('--supply') ?? process.env.INITIAL_SUPPLY ?? 1_000_000),
     name: get('--name') ?? process.env.TOKEN_NAME ?? 'My SPL Token',
+    symbol: get('--symbol') ?? process.env.TOKEN_SYMBOL ?? 'MYSPL',
+    uri: get('--uri') ?? process.env.TOKEN_URI ?? '', // off-chain JSON (logo/desc)
     revoke: has('--revoke'), // if set, mint authority is removed after minting
     insecureRpc:
       has('--insecure-rpc') ||
@@ -256,9 +265,13 @@ async function main() {
   console.log('\n🚀 SPL TOKEN DEPLOYMENT (using provided private key)')
   console.log('─'.repeat(50))
   console.log(
-    `Cluster: ${cfg.cluster} · Decimals: ${cfg.decimals} · ` +
-      `Initial supply: ${cfg.supply} · Revoke authority: ${cfg.revoke}`,
+    `Cluster: ${cfg.cluster} · Name: ${cfg.name} · Symbol: ${cfg.symbol} · ` +
+      `Decimals: ${cfg.decimals} · Initial supply: ${cfg.supply} · ` +
+      `Revoke authority: ${cfg.revoke}`,
   )
+
+  // Fail fast BEFORE deploying if the name/symbol won't fit Metaplex's limits.
+  validateMetadata({ name: cfg.name, symbol: cfg.symbol, uri: cfg.uri })
 
   // Pick the RPC endpoint. A custom RPC (paid) is recommended for mainnet.
   const endpoint = cfg.rpcUrl ?? clusterApiUrl(cfg.cluster)
@@ -305,6 +318,29 @@ async function main() {
   )
   console.log(`✅ Minted. Tx: ${mintSig}`)
 
+  // ── Step 6.5: attach on-chain NAME + SYMBOL (Metaplex Token Metadata) ──
+  // The mint alone has no name/symbol; wallets read those from a Metaplex
+  // metadata account. We create it here so Phantom/Explorer show a real name and
+  // symbol. Must run while the deployer is still the mint authority (before any
+  // --revoke below), because CreateMetadataAccountV3 requires that signature.
+  console.log(`\n🏷️  Attaching metadata (name "${cfg.name}", symbol "${cfg.symbol}")…`)
+  let metadata = null
+  try {
+    metadata = await attachTokenMetadata(connection, payer, mint, {
+      name: cfg.name,
+      symbol: cfg.symbol,
+      uri: cfg.uri,
+    })
+    console.log(`✅ Metadata account: ${metadata.metadataAddress}`)
+    console.log(`   Tx: ${metadata.signature}`)
+  } catch (err) {
+    console.warn(
+      `⚠️  Could not attach metadata: ${String(err?.message ?? err)}\n` +
+        `   The token IS deployed and minted; only the on-chain name/symbol is missing.\n` +
+        `   You can retry attaching metadata later without redeploying.`,
+    )
+  }
+
   // ── Step 7 (optional): revoke the mint authority ──
   if (cfg.revoke) {
     console.log('\n🔒 Revoking mint authority (supply becomes fixed)…')
@@ -326,6 +362,7 @@ async function main() {
   const result = {
     cluster: cfg.cluster,
     name: cfg.name,
+    symbol: cfg.symbol,
     mintAddress: mint.toBase58(),
     decimals: mintInfo.decimals,
     initialSupply: cfg.supply,
@@ -334,6 +371,9 @@ async function main() {
     freezeAuthority: mintInfo.freezeAuthority?.toBase58() ?? null,
     deployer: payer.publicKey.toBase58(),
     ata: ata.address.toBase58(),
+    metadataUri: cfg.uri || null,
+    metadataAddress: metadata?.metadataAddress ?? null,
+    metadataTx: metadata?.signature ?? null,
     deployedAt: new Date().toISOString(),
     explorer: {
       mint: explorer('address', mint.toBase58(), cfg.cluster),

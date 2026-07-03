@@ -83,6 +83,7 @@ version, and the exact reason it's here — grouped so you can teach it in order
 |---------|---------|----------------|-------------------|
 | **`@solana/web3.js`** | `^1.95.4` | The core Solana JavaScript SDK. Gives us `Connection` (talk to an RPC), `Keypair` (identity), `PublicKey`, `Transaction`, `LAMPORTS_PER_SOL`, `clusterApiUrl`. Everything on-chain goes through this. | `lib/solana.ts`, `lib/spl.ts`, both deploy scripts, `SplTokenApp.tsx` |
 | **`@solana/spl-token`** | `^0.4.9` | Helpers for the **SPL Token Program**. Deploy side: `createMint`, `getOrCreateAssociatedTokenAccount`, `mintTo`, `setAuthority`, `getMint`. App side: `getAssociatedTokenAddress`, `getAccount`, `createTransferInstruction`, `createBurnInstruction`, `createAssociatedTokenAccountInstruction`. | `lib/spl.ts`, both deploy scripts |
+| **`@metaplex-foundation/mpl-token-metadata`** | `^2.13.0` | Attaches **on-chain name + symbol** (Metaplex Token Metadata) to the mint so Phantom/Explorer show a real name/ticker. We use `createCreateMetadataAccountV3Instruction` + `PROGRAM_ID`. | `scripts/metadata.mjs` (used by both deploy scripts) |
 | **`@solana/wallet-adapter-base`** | `^0.9.23` | Base types/interfaces the other wallet-adapter packages build on. Pulled in transitively; pinned for a consistent version. | (transitive) |
 | **`@solana/wallet-adapter-react`** | `^0.15.35` | React context + hooks: `ConnectionProvider`, `WalletProvider`, and the `useConnection` / `useWallet` hooks the UI relies on. | `components/Providers.tsx`, `SplTokenApp.tsx` |
 | **`@solana/wallet-adapter-react-ui`** | `^0.9.35` | Ready-made UI: the `WalletModalProvider` (wallet-picker popup), the `WalletMultiButton` (Connect/Disconnect button), and its `styles.css`. Saves us building a wallet modal by hand. | `components/Providers.tsx`, `SplTokenApp.tsx` |
@@ -174,7 +175,19 @@ scripts/
   deploy-token-with-key.mjs  → SAME deploy flow, but uses a PRIVATE KEY you pass IN the
                                command (base58 or JSON array) instead of a keypair file.
                                Run: npm run deploy:key -- <YOUR_PRIVATE_KEY>
+  metadata.mjs               → Shared helper: attaches on-chain name+symbol via Metaplex
+                               Token Metadata (used by both deploy scripts).
+  load-env.mjs               → Tiny dependency-free .env loader imported first by both
+                               deploy scripts (so .env works on any Node version).
   deployer-keypair.json      → The auto-generated devnet keypair (git-ignored).
+
+contracts/
+  spl_token_program.rs → ANNOTATED REFERENCE (lecture) of Solana's official SPL Token
+                      Program in Rust — the on-chain program that powers every SPL
+                      token. State layouts are byte-verbatim from the official source;
+                      instruction/processor logic is faithfully commented. READ-ONLY:
+                      not compiled or redeployed (your token uses Solana's deployed
+                      program, id Tokenkeg…, which is what makes it a standard token).
 
 deployment.json     → The deployed token's record (written by whichever deploy script
                       you ran). The web app reads its mint address + decimals from here.
@@ -227,8 +240,9 @@ Load the deployer keypair (pays fees, becomes mint authority)
    → createMint                     (allocate + initialize the mint on-chain)
       → getOrCreateAssociatedTokenAccount  (deployer's ATA)
          → mintTo                   (mint the initial supply into that ATA)
-            → (optional) revoke mint authority  → supply fixed forever
-               → write deployment.json  ➜  the token now exists on devnet
+            → attachTokenMetadata   (Metaplex: on-chain name + symbol)
+               → (optional) revoke mint authority  → supply fixed forever
+                  → write deployment.json  ➜  the token now exists on devnet
 ```
 
 **Integrate** = the web app's buttons acting on that already-deployed token:
@@ -287,8 +301,15 @@ Options (all optional):
 ```bash
 node scripts/deploy-token.mjs --decimals 6 --supply 1000000   # custom token
 node scripts/deploy-token.mjs --revoke                        # lock supply forever
-node scripts/deploy-token.mjs --name "My Token"               # set a display name
+node scripts/deploy-token.mjs --name "My Token" --symbol MYT  # on-chain name + symbol
+node scripts/deploy-token.mjs --uri https://.../metadata.json # off-chain logo/desc JSON
 ```
+
+> **Name + symbol are on-chain.** The script attaches a **Metaplex Token Metadata**
+> account after minting (step 6.5), so Phantom/Explorer show the real name and ticker.
+> Limits: name ≤ 32 chars, symbol ≤ 10 chars. The script validates these *before*
+> deploying and fails fast if they're too long. `--uri` optionally points to an
+> off-chain JSON file (logo, description).
 
 > **If the airdrop fails** (the devnet faucet is sometimes rate-limited): the script
 > prints your generated address and stops. Copy it, claim SOL at
@@ -331,10 +352,12 @@ signs and becomes the mint/freeze authority: yours.
 > `PRIVATE_KEY` env var, run `history -c` afterwards, and never commit or screenshot it.
 > On devnet a throwaway key is fine.
 
-**Flags supported by both scripts:** `--decimals`, `--supply`, `--name`, `--revoke`,
-`--cluster <devnet|mainnet-beta>`, `--rpc <url>`, `--insecure-rpc`. `deploy-token.mjs`
-also supports `--keypair <path>` (read a keypair *file*); `deploy-token-with-key.mjs`
-adds `--private-key` / `-k` (or the positional key, or `PRIVATE_KEY`).
+**Flags supported by both scripts:** `--decimals`, `--supply`, `--name`, `--symbol`,
+`--uri`, `--revoke`, `--cluster <devnet|mainnet-beta>`, `--rpc <url>`, `--insecure-rpc`.
+`deploy-token.mjs` also supports `--keypair <path>` (read a keypair *file*);
+`deploy-token-with-key.mjs` adds `--private-key` / `-k` (or the positional key, or
+`PRIVATE_KEY`). All of these also have `.env` equivalents (`DECIMALS`, `INITIAL_SUPPLY`,
+`TOKEN_NAME`, `TOKEN_SYMBOL`, `TOKEN_URI`, `CLUSTER`, `RPC_URL`, `PRIVATE_KEY`).
 
 ---
 
@@ -531,7 +554,11 @@ Server Components like `layout.tsx`.
 
 - **SPL** — Solana Program Library; the standard on-chain programs. The **Token
   Program** is the one that runs all SPL tokens.
-- **Mint** — the account that *is* your token (decimals, supply, authority).
+- **Mint** — the account that *is* your token (decimals, supply, authority). Note: the
+  mint stores **no** name/symbol — those live in a separate Metaplex metadata account.
+- **Token Metadata (Metaplex)** — a separate on-chain account (program `metaqbxx…`) that
+  holds the token's **name, symbol, and URI**. Wallets/Explorer read it to display the
+  token. Our deploy scripts create it via `scripts/metadata.mjs`.
 - **ATA (Associated Token Account)** — a wallet's balance-holding account for one
   specific token.
 - **Mint authority** — who can create new supply.

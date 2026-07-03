@@ -1,17 +1,21 @@
 {
   "cluster": "devnet",
-  "name": "My SPL Token",
-  "mintAddress": "Ap2Z7n6DpKyBoazK6ZJHX9i2MubbM5HMp2brRmUtZTRg",
+  "name": "Token Example 1",
+  "symbol": "TX1",
+  "mintAddress": "6kQqVYcE6pextibSukvcpRFfkphoqBo96tA1d4GGSdtT",
   "decimals": 9,
   "initialSupply": 1000000,
   "totalSupplyBaseUnits": "1000000000000000",
   "mintAuthority": "2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3",
   "freezeAuthority": "2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3",
   "deployer": "2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3",
-  "ata": "Gmr2pNmQCGwNmgQjMSyUyAWr8stcnyWdbF6ttvuKHssk",
-  "deployedAt": "2026-07-02T23:14:06.237Z",
+  "ata": "3Q6pBpAB8XAobiFkGagvB8BBcsLGrSizALPG3NaWjhyz",
+  "metadataUri": null,
+  "metadataAddress": "A3JF42qrPjmuBji5dW3dZiC27v2skpi4KuXXcKSQpuaw",
+  "metadataTx": "5xwZghTCQtfTo5uCMvRTnAvBAe4yW9KCi1GkjG48ewLK4n1j6cjejeqo1SxR7hbH6qyiLMxMtcVEJhfcQF9xBLVA",
+  "deployedAt": "2026-07-03T10:56:31.187Z",
   "explorer": {
-    "mint": "https://explorer.solana.com/address/Ap2Z7n6DpKyBoazK6ZJHX9i2MubbM5HMp2brRmUtZTRg?cluster=devnet",
+    "mint": "https://explorer.solana.com/address/6kQqVYcE6pextibSukvcpRFfkphoqBo96tA1d4GGSdtT?cluster=devnet",
     "deployer": "https://explorer.solana.com/address/2s93kkSmtvRzP7pJbSQnoUD9LRnHLMXMCBV5cEMuVVB3?cluster=devnet"
   }
 }
