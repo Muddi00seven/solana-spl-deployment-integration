@@ -1,5 +1,5 @@
 // ═════════════════════════════════════════════════════════════════════════════
-//  spl_token_program.rs — The SPL Token Program (Rust), ANNOTATED REFERENCE
+//  spl-token-example.rs — The SPL Token Program (Rust), ANNOTATED REFERENCE
 // ═════════════════════════════════════════════════════════════════════════════
 //
 //  WHAT THIS IS

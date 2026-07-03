@@ -182,7 +182,7 @@ scripts/
   deployer-keypair.json      → The auto-generated devnet keypair (git-ignored).
 
 contracts/
-  spl_token_program.rs → ANNOTATED REFERENCE (lecture) of Solana's official SPL Token
+  spl-token-example.rs → ANNOTATED REFERENCE (lecture) of Solana's official SPL Token
                       Program in Rust — the on-chain program that powers every SPL
                       token. State layouts are byte-verbatim from the official source;
                       instruction/processor logic is faithfully commented. READ-ONLY:
