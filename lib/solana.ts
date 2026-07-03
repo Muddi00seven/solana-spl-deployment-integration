@@ -33,3 +33,26 @@ export function explorerAddress(address: string | PublicKey): string {
   const value = typeof address === 'string' ? address : address.toBase58()
   return `https://explorer.solana.com/address/${value}?cluster=${CLUSTER}`
 }
+
+// ─── Read retry helper ───────────────────────────────────────────────────────
+// Public RPC endpoints (like api.devnet.solana.com) intermittently reject browser
+// reads with 403/429 or a transient network error. Instead of failing on the very
+// first hiccup, retry a few times with a short backoff before giving up.
+export async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      if (attempt < tries) {
+        await new Promise((r) => setTimeout(r, 500 * attempt))
+      }
+    }
+  }
+  throw lastErr
+}
+
+// True when the app is running on the rate-limited public RPC (no custom RPC set).
+// The UI uses this to nudge the user to configure NEXT_PUBLIC_RPC_URL.
+export const USING_PUBLIC_RPC = !process.env.NEXT_PUBLIC_RPC_URL

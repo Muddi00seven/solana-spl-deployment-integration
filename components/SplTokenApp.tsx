@@ -22,7 +22,13 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 
-import { explorerAddress, explorerTx } from '@/lib/solana'
+import {
+  explorerAddress,
+  explorerTx,
+  withRetry,
+  RPC_ENDPOINT,
+  USING_PUBLIC_RPC,
+} from '@/lib/solana'
 import { DEPLOYED_TOKEN } from '@/lib/token'
 import {
   transferTokens,
@@ -47,6 +53,7 @@ export function SplTokenApp() {
 
   // SOL balance shown at the top (you need SOL to pay fees).
   const [solBalance, setSolBalance] = useState<number | null>(null)
+  const [solStatus, setSolStatus] = useState<Status>(idle)
 
   // Per-panel input + status.
   const [airStatus, setAirStatus] = useState<Status>(idle)
@@ -65,10 +72,22 @@ export function SplTokenApp() {
   const sendTx = sendTransaction as unknown as SendTx
 
   // ── Load the wallet's SOL balance whenever it connects/changes ──
+  // Wrapped in retry + try/catch so a flaky public RPC surfaces a visible error
+  // instead of silently leaving the balance blank forever.
   const refreshSol = useCallback(async () => {
     if (!publicKey) return
-    const lamports = await connection.getBalance(publicKey)
-    setSolBalance(lamports / LAMPORTS_PER_SOL)
+    setSolStatus({ kind: 'busy', text: 'Reading SOL…' })
+    try {
+      const lamports = await withRetry(() => connection.getBalance(publicKey))
+      setSolBalance(lamports / LAMPORTS_PER_SOL)
+      setSolStatus(idle)
+    } catch (e) {
+      setSolBalance(null)
+      setSolStatus({
+        kind: 'err',
+        text: 'Could not read SOL — ' + errMsg(e) + '. Likely an RPC issue; set NEXT_PUBLIC_RPC_URL (see below).',
+      })
+    }
   }, [connection, publicKey])
 
   useEffect(() => {
@@ -101,11 +120,13 @@ export function SplTokenApp() {
     if (!publicKey) return
     setBalStatus({ kind: 'busy', text: 'Reading balance…' })
     try {
-      const bal = await getTokenBalance(connection, publicKey, MINT_ADDRESS, DECIMALS)
+      const bal = await withRetry(() =>
+        getTokenBalance(connection, publicKey, MINT_ADDRESS, DECIMALS),
+      )
       setTokenBalance(bal)
       setBalStatus({ kind: 'ok', text: 'Balance updated' })
     } catch (e) {
-      setBalStatus({ kind: 'err', text: errMsg(e) })
+      setBalStatus({ kind: 'err', text: errMsg(e) + ' (likely RPC — set NEXT_PUBLIC_RPC_URL)' })
     }
   }
 
@@ -161,14 +182,45 @@ export function SplTokenApp() {
       </header>
 
       {/* Wallet bar */}
-      <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-        <WalletMultiButton />
+      <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <WalletMultiButton />
+          {connected && publicKey && (
+            <>
+              <span className="text-sm text-white/70">
+                SOL: <b>{solBalance === null ? '…' : solBalance.toFixed(4)}</b>
+              </span>
+              <button
+                onClick={refreshSol}
+                disabled={solStatus.kind === 'busy'}
+                className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50"
+              >
+                {solStatus.kind === 'busy' ? '…' : '↻ Refresh'}
+              </button>
+            </>
+          )}
+        </div>
         {connected && publicKey && (
-          <span className="text-sm text-white/70">
-            SOL: <b>{solBalance === null ? '…' : solBalance.toFixed(4)}</b>
-          </span>
+          <p className="mt-2 break-all font-mono text-xs text-white/40">
+            {publicKey.toBase58()}
+          </p>
+        )}
+        {solStatus.kind === 'err' && (
+          <p className="mt-2 text-xs text-red-400">{solStatus.text}</p>
         )}
       </div>
+
+      {/* RPC hint — the #1 cause of blank balances is the rate-limited public RPC */}
+      {USING_PUBLIC_RPC && (
+        <div className="mb-6 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-xs text-yellow-200/90">
+          <b>Using the public devnet RPC</b> (<span className="font-mono">{RPC_ENDPOINT}</span>).
+          It is heavily rate-limited and often blocks browser reads, which shows up as
+          blank SOL / token balances. Fix: get a free devnet RPC URL from Helius,
+          QuickNode, or Alchemy, put it in <span className="font-mono">.env.local</span> as{' '}
+          <span className="font-mono">NEXT_PUBLIC_RPC_URL=...</span>, then restart{' '}
+          <span className="font-mono">npm run dev</span>.
+        </div>
+      )}
 
       {/* Deployed token info — always visible, read-only */}
       <Panel title="Deployed token">

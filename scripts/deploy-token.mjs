@@ -46,6 +46,7 @@ import {
   AuthorityType,
   getMint,
 } from '@solana/spl-token'
+import bs58 from 'bs58'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -191,6 +192,33 @@ function explorer(kind, value, cluster) {
   return `https://explorer.solana.com/${kind}/${value}${suffix}`
 }
 
+// ─── Private-key print helper (for importing into Phantom) ───────────────────
+// Phantom (and most wallets) import a keypair using its secret key encoded as a
+// single base58 string — NOT the JSON array of 64 numbers saved on disk. This
+// prints that base58 string so you can paste it into Phantom's "Import Private
+// Key" screen and control the deployer wallet (which holds the whole supply).
+function printPhantomKey(keypair, cluster) {
+  const base58Secret = bs58.encode(keypair.secretKey)
+  console.log('\n' + '─'.repeat(50))
+  console.log('🔐 DEPLOYER PRIVATE KEY (import into Phantom)')
+  console.log('─'.repeat(50))
+  console.log(`Public key : ${keypair.publicKey.toBase58()}`)
+  console.log(`Private key: ${base58Secret}`)
+  console.log(
+    'In Phantom: Add / Connect Wallet → Import Private Key → paste the string above.',
+  )
+  if (cluster !== 'devnet' && cluster !== 'testnet') {
+    console.warn(
+      '⚠️  MAINNET keypair — this key controls REAL funds. Never share it, never ' +
+        'commit it, and clear your terminal history after importing.',
+    )
+  } else {
+    console.log(
+      '⚠️  Devnet throwaway key — still, never reuse it for anything holding real value.',
+    )
+  }
+}
+
 // ─── Main deployment flow ────────────────────────────────────────────────────
 
 async function main() {
@@ -299,6 +327,10 @@ async function main() {
   console.log(JSON.stringify(result, null, 2))
   console.log(`\n📝 Saved to ${outPath}`)
   console.log(`🔗 Explorer: ${result.explorer.mint}`)
+
+  // Print the deployer's private key so it can be imported into Phantom.
+  printPhantomKey(payer, cfg.cluster)
+
   console.log(
     `\n👉 Saved to deployment.json — the web app auto-reads it. Run \`npm run dev\`\n` +
       `   to integrate with this token (check balance / transfer / burn):\n   ${result.mintAddress}`,

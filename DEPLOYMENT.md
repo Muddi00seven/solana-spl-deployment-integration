@@ -93,6 +93,11 @@ creates the mint and mints the supply. You'll see output ending with:
 It writes the full record to **`deployment.json`** in the project root; the web app
 reads its mint address + decimals from there, so there's nothing to copy-paste.
 
+The script also prints a **`🔐 DEPLOYER PRIVATE KEY`** block (base58). This wallet
+holds the whole initial supply — import it into **Phantom** via *Add / Connect Wallet →
+Import Private Key* to control it and test transfer/burn in the web app. Never share,
+commit, or screenshot this key.
+
 ### Step 3 — Options
 
 | Flag / env | Meaning | Example |

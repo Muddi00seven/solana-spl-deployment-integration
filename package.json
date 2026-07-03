@@ -2,7 +2,7 @@
   "name": "solana-spl-deployment-integration",
   "version": "1.0.0",
   "private": true,
-  "description": "One-page Next.js dapp: create an SPL token, deploy it to Solana devnet, and integrate every token function (mint, transfer, burn, balance) with the Solana Wallet Adapter.",
+  "description": "Next.js dapp: deploy an SPL token to Solana devnet via a CLI script, then integrate with that deployed token (balance, transfer, burn) using the Solana Wallet Adapter.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -17,6 +17,7 @@
     "@solana/wallet-adapter-react-ui": "^0.9.35",
     "@solana/wallet-adapter-wallets": "^0.19.32",
     "@solana/web3.js": "^1.95.4",
+    "bs58": "^6.0.0",
     "next": "14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

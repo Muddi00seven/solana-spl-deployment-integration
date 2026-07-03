@@ -198,8 +198,17 @@ What `npm run deploy` does, in order, with **zero setup from you**:
 3. **Creates the mint** (deploys the token) with your chosen decimals + you as authority.
 4. **Creates an ATA** and **mints the initial supply** into it.
 5. **Prints the mint address** and saves a full record to `deployment.json`.
+6. **Prints the deployer's private key** (base58) so you can import the wallet into
+   **Phantom** — this wallet holds the whole initial supply.
 
-You'll end up with output like `👉 mint address: <ADDRESS>`. Copy that address.
+You'll end up with output like `👉 ... <MINT ADDRESS>` plus a `🔐 DEPLOYER PRIVATE KEY`
+block. Copy the mint address, and copy the **Private key** line into Phantom via
+**Add / Connect Wallet → Import Private Key** to control the wallet that holds the supply.
+
+> **Security:** the private key is printed only in your own terminal. Anyone with it
+> controls the wallet, so never paste it into a website, commit it, or share a
+> screenshot. On devnet it's a throwaway; on mainnet treat it as real money and clear
+> your terminal history after importing.
 
 > **If the airdrop fails** (the free devnet faucet is sometimes busy/rate-limited):
 > the script prints your generated address and stops. Just (a) copy that address,
@@ -311,6 +320,7 @@ browser-only APIs (`window`, `localStorage`) that crash during server rendering.
 
 | Problem | Fix |
 |--------|------|
+| **SOL and token balances are blank / never load** | The public devnet RPC is blocking/rate-limiting browser reads (403/429). Set a free `NEXT_PUBLIC_RPC_URL` in `.env.local` (Helius/QuickNode/Alchemy) and restart `npm run dev`. The app now shows a yellow banner when it's on the public RPC. |
 | **Airdrop fails / "429"** | The devnet faucet is rate-limited. Use <https://faucet.solana.com>. |
 | **"Attempt to debit an account but found no record of a prior credit"** | Your wallet has 0 SOL. Airdrop first. |
 | **Balance shows 0 / transfer says insufficient** | The initial supply was minted to the **deployer**, not your browser wallet. Transfer some of the token to your connected wallet first. |

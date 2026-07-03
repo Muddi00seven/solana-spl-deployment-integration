@@ -39,6 +39,8 @@ import {
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   createBurnInstruction,
+  TokenAccountNotFoundError,
+  TokenInvalidAccountOwnerError,
 } from '@solana/spl-token'
 
 // The wallet adapter gives us a `sendTransaction` function with this shape.
@@ -158,9 +160,17 @@ export async function getTokenBalance(
     // getAccount reads the token account. `.amount` is a bigint in base units.
     const account = await getAccount(connection, ata)
     return Number(account.amount) / 10 ** decimals
-  } catch {
-    // "TokenAccountNotFoundError" just means the wallet never held this token.
-    return 0
+  } catch (e) {
+    // These two specifically mean "this wallet has simply never held this token"
+    // → a real balance of 0. Anything else (RPC 403/429/timeout) is a genuine
+    // error we must NOT hide as "0", so we re-throw it for the UI to show.
+    if (
+      e instanceof TokenAccountNotFoundError ||
+      e instanceof TokenInvalidAccountOwnerError
+    ) {
+      return 0
+    }
+    throw e
   }
 }
 
