@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "node scripts/deploy-token.mjs"
+    "deploy": "node scripts/deploy-token.mjs",
+    "deploy:key": "node scripts/deploy-token-with-key.mjs"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.9",
