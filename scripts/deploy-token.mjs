@@ -73,6 +73,7 @@ function readArgs() {
     decimals: Number(get('--decimals') ?? process.env.DECIMALS ?? 9),
     supply: Number(get('--supply') ?? process.env.INITIAL_SUPPLY ?? 1_000_000),
     name: get('--name') ?? process.env.TOKEN_NAME ?? 'My SPL Token',
+    
     symbol: get('--symbol') ?? process.env.TOKEN_SYMBOL ?? 'MYSPL',
     uri: get('--uri') ?? process.env.TOKEN_URI ?? '', // off-chain JSON (logo/desc)
     revoke: has('--revoke'), // if set, mint authority is removed after minting

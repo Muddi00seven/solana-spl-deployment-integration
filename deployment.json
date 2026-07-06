@@ -1,21 +1,21 @@
 {
   "cluster": "devnet",
-  "name": "Token Example 13",
-  "symbol": "TX13",
-  "mintAddress": "BwWyk5wfjiKWjkrtksSkKNthUL6fEuehFAa3vTeAuocM",
+  "name": "Example Token1",
+  "symbol": "EXT1",
+  "mintAddress": "77v654RvosyW4a9CX6YCg1Vz1Kgma5PuGg8Zdiww4XQK",
   "decimals": 9,
-  "initialSupply": 1000000,
-  "totalSupplyBaseUnits": "1000000000000000",
-  "mintAuthority": "9uutUv8HRBFaP7oPgJHoaYTaVmVWPLD2gBPKPp3J1Lb5",
-  "freezeAuthority": "9uutUv8HRBFaP7oPgJHoaYTaVmVWPLD2gBPKPp3J1Lb5",
-  "deployer": "9uutUv8HRBFaP7oPgJHoaYTaVmVWPLD2gBPKPp3J1Lb5",
-  "ata": "8mtunFitcC5tGyNnrntU3WR9znWY83r64zQof7kwaqrK",
+  "initialSupply": 500000,
+  "totalSupplyBaseUnits": "500000000000000",
+  "mintAuthority": "6yrLQ54L28uepER7PQigMjaVDJWqgdQ1pjeBKTDmsZVF",
+  "freezeAuthority": "6yrLQ54L28uepER7PQigMjaVDJWqgdQ1pjeBKTDmsZVF",
+  "deployer": "6yrLQ54L28uepER7PQigMjaVDJWqgdQ1pjeBKTDmsZVF",
+  "ata": "32anLnw5Aqri1g6rwiXdXzUk1rEApgSnxFynGL7u4VFS",
   "metadataUri": null,
-  "metadataAddress": "FQZyfXggaTSLvvgxPCTtcbQfrNchyXdXNNiDZdLJH1Qm",
-  "metadataTx": "3mgzH1Ty6cQm1zAukRfmKioRFTrSUfmXqfcuDX5g7UF3P7D9BtxWf4AKkjBS8p9uSMJFA4wX2UAAjgzjYFAs1rsQ",
-  "deployedAt": "2026-07-06T10:07:28.974Z",
+  "metadataAddress": "ACG6v4MSMekHKrPEP2XuoKGVwUKx5RKzbbQpWvSGWVT7",
+  "metadataTx": "3VQs5eWapBXRSHWWLxxGELhA4X2zn5myqnHdRdBueQEsnDcUzywDaojS8uj6nxZEKnWAHjMV63kxQTjHZHRpqcMW",
+  "deployedAt": "2026-07-06T15:34:25.976Z",
   "explorer": {
-    "mint": "https://explorer.solana.com/address/BwWyk5wfjiKWjkrtksSkKNthUL6fEuehFAa3vTeAuocM?cluster=devnet",
-    "deployer": "https://explorer.solana.com/address/9uutUv8HRBFaP7oPgJHoaYTaVmVWPLD2gBPKPp3J1Lb5?cluster=devnet"
+    "mint": "https://explorer.solana.com/address/77v654RvosyW4a9CX6YCg1Vz1Kgma5PuGg8Zdiww4XQK?cluster=devnet",
+    "deployer": "https://explorer.solana.com/address/6yrLQ54L28uepER7PQigMjaVDJWqgdQ1pjeBKTDmsZVF?cluster=devnet"
   }
 }
