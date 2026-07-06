@@ -69,6 +69,7 @@ function readArgs() {
     cluster: get('--cluster') ?? process.env.CLUSTER ?? 'devnet',
     rpcUrl: get('--rpc') ?? process.env.RPC_URL ?? process.env.NEXT_PUBLIC_RPC_URL,
     keypairPath: get('--keypair') ?? process.env.KEYPAIR_PATH,
+    privateKey: get('--private-key') ?? process.env.PRIVATE_KEY,
     decimals: Number(get('--decimals') ?? process.env.DECIMALS ?? 9),
     supply: Number(get('--supply') ?? process.env.INITIAL_SUPPLY ?? 1_000_000),
     name: get('--name') ?? process.env.TOKEN_NAME ?? 'My SPL Token',
@@ -87,11 +88,23 @@ function readArgs() {
 // mint + freeze authority. On devnet we can safely generate a throwaway one and
 // save it locally. NEVER commit a mainnet keypair to git.
 
-function loadOrCreateKeypair(keypairPath) {
-  // Default location for the generated devnet keypair.
+function loadOrCreateKeypair(keypairPath, privateKeyBase58) {
   const defaultPath = path.join(__dirname, 'deployer-keypair.json')
+
+  // ── Priority 1: --private-key flag (Base58 string) ──────────────────────
+  if (privateKeyBase58) {
+    const secretKey = bs58.decode(privateKeyBase58)
+    const kp = Keypair.fromSecretKey(secretKey)
+    // Save it so future runs reuse the same wallet automatically
+    fs.writeFileSync(defaultPath, JSON.stringify(Array.from(secretKey)))
+    console.log(`🔑 Loaded keypair from --private-key: ${kp.publicKey.toBase58()}`)
+    console.log(`   Saved to ${defaultPath} for future runs.`)
+    return kp
+  }
+
+  // ── Priority 2: --keypair file path ─────────────────────────────────────
   const filePath = keypairPath
-    ? keypairPath.replace(/^~(?=$|\/)/, os.homedir()) // expand a leading ~
+    ? keypairPath.replace(/^~(?=$|\/)/, os.homedir())
     : defaultPath
 
   if (fs.existsSync(filePath)) {
@@ -102,7 +115,7 @@ function loadOrCreateKeypair(keypairPath) {
     return kp
   }
 
-  // No keypair found → generate a fresh one and save it (devnet convenience).
+  // ── Priority 3: generate fresh keypair ──────────────────────────────────
   const kp = Keypair.generate()
   fs.writeFileSync(filePath, JSON.stringify(Array.from(kp.secretKey)))
   console.log(`🆕 Generated new deployer keypair → ${filePath}`)
@@ -247,7 +260,7 @@ async function main() {
   const connection = new Connection(endpoint, 'confirmed')
 
   // Step 1 + 2: identity.
-  const payer = loadOrCreateKeypair(cfg.keypairPath)
+  const payer = loadOrCreateKeypair(cfg.keypairPath, cfg.privateKey)
 
   // Step 3: funds.
   await ensureFunds(connection, payer, cfg.cluster)
